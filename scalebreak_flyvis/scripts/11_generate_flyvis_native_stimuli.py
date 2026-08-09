@@ -21,6 +21,9 @@ import numpy as np
 import pandas as pd
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
 def write_json(data: dict[str, Any], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
@@ -56,7 +59,22 @@ def rotate_coords(x: np.ndarray, y: np.ndarray, angle_deg: float) -> tuple[np.nd
     return along, perp
 
 
-def shape_mask(family: str, shape: str, scale: float, angle: float, x: np.ndarray, y: np.ndarray, t_frac: float) -> np.ndarray:
+def shape_mask(
+    family: str,
+    shape: str,
+    scale: float,
+    angle: float,
+    x: np.ndarray,
+    y: np.ndarray,
+    t_frac: float,
+    offset_x: float = 0.0,
+    offset_y: float = 0.0,
+) -> np.ndarray:
+    # Position is a nuisance variable.  Applying the offset before rotating the
+    # coordinates translates the complete trajectory without changing its
+    # direction label.
+    x = x - float(offset_x)
+    y = y - float(offset_y)
     along, perp = rotate_coords(x, y, angle)
     field = 23.0
     if family == "moving_edge":
@@ -99,6 +117,10 @@ def render_movie(
     n_frames: int,
     t_pre_frames: int,
     active_frames: int,
+    offset_x: float = 0.0,
+    offset_y: float = 0.0,
+    seed: int | None = None,
+    noise_std: float = 0.0,
 ) -> tuple[np.ndarray, dict[str, float]]:
     movie = np.full((n_frames, 1, len(x)), 0.5, dtype=np.float32)
     target = 0.5 + 0.5 * float(contrast)
@@ -112,9 +134,27 @@ def render_movie(
             t_frac = min(1.0, max(0.0, (frame - t_pre_frames) / denom))
             active = True
         if active:
-            mask = shape_mask(family, shape, scale, angle, x, y, t_frac)
+            mask = shape_mask(
+                family,
+                shape,
+                scale,
+                angle,
+                x,
+                y,
+                t_frac,
+                offset_x=offset_x,
+                offset_y=offset_y,
+            )
             movie[frame, 0, mask] = target
             area_accum.append(float(mask.sum()))
+    if noise_std > 0:
+        # The original submitted generator recorded a different seed for each
+        # repeat but never used it, making all ten repeats pixel-identical.  A
+        # small seeded luminance perturbation makes repeats genuine independent
+        # renderings while preserving the controlled label variables.
+        noise_rng = np.random.default_rng(seed)
+        movie += noise_rng.normal(0.0, noise_std, size=movie.shape).astype(np.float32)
+        np.clip(movie, 0.0, 1.0, out=movie)
     return movie, {
         "mean_area_hex": float(np.mean(area_accum)) if area_accum else 0.0,
         "max_area_hex": float(np.max(area_accum)) if area_accum else 0.0,
@@ -123,9 +163,9 @@ def render_movie(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--flyvis-root", default="scalebreak_flyvis/flyvis_data")
+    parser.add_argument("--flyvis-root", type=Path, default=ROOT / "flyvis_data")
     parser.add_argument("--model", default="flow/0000/000")
-    parser.add_argument("--out-dir", default="scalebreak_flyvis/outputs/flyvis_pilot_v2/stimuli")
+    parser.add_argument("--out-dir", type=Path, default=ROOT / "outputs" / "flyvis_pilot_v2" / "stimuli")
     parser.add_argument("--scales", default="2,3,4,6,8,12,16,24")
     parser.add_argument("--angles", default="0,60,120,180,240,300")
     parser.add_argument("--contrasts", default="1.0,0.3")
@@ -135,13 +175,24 @@ def main() -> None:
     parser.add_argument("--dt", type=float, default=1 / 200)
     parser.add_argument("--t-pre", type=float, default=0.2)
     parser.add_argument("--active-frames", type=int, default=86)
+    parser.add_argument(
+        "--position-jitter",
+        type=float,
+        default=3.0,
+        help="Maximum absolute x/y translation sampled independently per repeat. Use 0 to reproduce the legacy centered stimuli.",
+    )
+    parser.add_argument(
+        "--noise-std",
+        type=float,
+        default=0.01,
+        help="Seeded per-pixel luminance-noise SD. Use 0 to reproduce the legacy deterministic repeats.",
+    )
     parser.add_argument("--include-static-angles", action="store_true", help="Use all angles for static appendix controls.")
     args = parser.parse_args()
 
-    root = Path.cwd()
-    out_dir = (root / args.out_dir).resolve()
+    out_dir = args.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    flyvis_root = (root / args.flyvis_root).resolve()
+    flyvis_root = args.flyvis_root.resolve()
     x, y = flyvis_input_coordinates(flyvis_root, args.model)
 
     scales = parse_numbers(args.scales, float)
@@ -162,6 +213,8 @@ def main() -> None:
             for angle in angles:
                 for contrast in contrasts:
                     for repeat in range(args.repeats):
+                        trial_seed = int(rng.integers(0, 2**31 - 1))
+                        trial_rng = np.random.default_rng(trial_seed)
                         rows.append(
                             {
                                 "sample": len(rows),
@@ -174,7 +227,11 @@ def main() -> None:
                                 "direction": angle,
                                 "contrast": contrast,
                                 "repeat": repeat,
-                                "seed": int(rng.integers(0, 2**31 - 1)),
+                                "seed": trial_seed,
+                                "offset_x": float(trial_rng.uniform(-args.position_jitter, args.position_jitter)),
+                                "offset_y": float(trial_rng.uniform(-args.position_jitter, args.position_jitter)),
+                                "noise_std": float(args.noise_std),
+                                "scale_varies_geometry": family != "moving_edge",
                                 "appendix_control": False,
                                 "dynamic": True,
                             }
@@ -185,6 +242,8 @@ def main() -> None:
             for angle in static_angles:
                 for contrast in contrasts:
                     for repeat in range(args.repeats):
+                        trial_seed = int(rng.integers(0, 2**31 - 1))
+                        trial_rng = np.random.default_rng(trial_seed)
                         rows.append(
                             {
                                 "sample": len(rows),
@@ -197,7 +256,11 @@ def main() -> None:
                                 "direction": np.nan,
                                 "contrast": contrast,
                                 "repeat": repeat,
-                                "seed": int(rng.integers(0, 2**31 - 1)),
+                                "seed": trial_seed,
+                                "offset_x": float(trial_rng.uniform(-args.position_jitter, args.position_jitter)),
+                                "offset_y": float(trial_rng.uniform(-args.position_jitter, args.position_jitter)),
+                                "noise_std": float(args.noise_std),
+                                "scale_varies_geometry": True,
                                 "appendix_control": True,
                                 "dynamic": False,
                             }
@@ -222,6 +285,10 @@ def main() -> None:
             args.n_frames,
             t_pre_frames,
             args.active_frames,
+            offset_x=float(row.offset_x),
+            offset_y=float(row.offset_y),
+            seed=int(row.seed),
+            noise_std=float(row.noise_std),
         )
         stimuli[i] = movie
         extras.append(extra)
@@ -243,7 +310,13 @@ def main() -> None:
             "n_trials": int(len(metadata)),
             "seed": args.seed,
             "feature_families": sorted(metadata.feature_family.unique()),
-            "note": "Apparent scale is rendered in retinal hex-pixel coordinates.",
+            "position_jitter": args.position_jitter,
+            "noise_std": args.noise_std,
+            "note": (
+                "Apparent scale is rendered in retinal hex-pixel coordinates. Moving-edge geometry is scale-neutral and is marked "
+                "scale_varies_geometry=False. Repeat seeds control position jitter and luminance noise; set both amplitudes to zero "
+                "only for legacy deterministic-repeat reproduction."
+            ),
         },
         out_dir / "stimulus_manifest.json",
     )

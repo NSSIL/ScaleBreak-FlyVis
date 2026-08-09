@@ -1,156 +1,131 @@
 # ScaleBreak-FlyVis
 
-Clean public repository for the ScaleBreak-FlyVis analysis pipeline.
+ScaleBreak-FlyVis is a reproducible analysis toolkit for testing whether dynamic visual variables remain linearly decodable when retinal apparent scale changes. It supports pretrained FlyVis responses, leave-one-scale-out evaluation, matched temporal controls, circuit perturbations, uncertainty estimates, and figure generation.
 
-ScaleBreak-FlyVis tests whether dynamic visual variables remain decodable across
-changes in **retinal apparent scale** in a pretrained connectome-constrained fly
-visual model. The project deliberately does **not** claim physical-distance
-perception, generic object recognition, or exact connectome causality.
+## Included
 
-## What Is Included
+- FlyVis-native hexagonal stimulus generation
+- Frozen FlyVis response extraction
+- Unique-condition and duplicate-repeat audits
+- Interpolation and boundary-extrapolation summaries
+- Collision audits for hex-to-square coordinate mappings
+- Capacity- and sampling-matched temporal controls
+- Direct T4/T5 and connectivity-parameter perturbations
+- Linear probes, temporal diagnostics, RSA/CKA, and robustness controls
+- PDF, SVG, and PNG figure exports
 
-- Reproducible pipeline code:
-  - `scalebreak_flyvis/scripts/`
-  - `scalebreak_flyvis/src/`
-  - `scalebreak_flyvis/configs/`
-  - `scalebreak_flyvis/tests/`
-- Lightweight final results:
-  - publication figures
-  - supplementary figures
-  - result tables
-  - reviewer-hardening diagnostics
-- Baseline summaries:
-  - TemporalResNet18Small
-  - STN-CNN
-  - hex-native temporal model
-  - calibration and pixel robustness checks
+## Recent code updates
 
-## What Is Not Included
+- Repeat seeds now drive position jitter and luminance noise in `11_generate_flyvis_native_stimuli.py`.
+- Moving edges are marked as scale-neutral because changing their nominal scale does not alter rendered geometry.
+- `42_audit_unique_conditions.py` detects duplicate renderings, recomputes uncertainty over unique conditions, and separates interpolation from boundary extrapolation.
+- `43_matched_geometry_controls.py` compares hex-neighbour, collision-free square-neighbour, and self-only temporal models with matched inputs, capacity, splits, and optimization.
+- `44_direct_flyvis_perturbations.py` re-simulates FlyVis after T4/T5 state silencing and two connectivity-parameter shuffles.
+- `45_make_analysis_figures.py` regenerates the current figures with legends outside the plotting axes.
 
-The repository intentionally excludes heavy/local artifacts:
-
-- paper draft folder and compiled manuscript package
-- `.venv_flyvis/`
-- `flyvis_data/`
-- raw FlyVis stimuli and response arrays
-- activation/feature `.npy` arrays
-- model checkpoints
-- local neuPrint export tables
-
-This keeps the repository small and reviewable. Scripts retain the expected
-paths and can regenerate heavy outputs when the local FlyVis and neuPrint data
-are available.
-
-## Repository Layout
+## Repository layout
 
 ```text
 scalebreak_flyvis/
-  configs/                 # pipeline configs
-  scripts/                 # audit, stimulus, model, analysis, plotting scripts
-  src/scalebreak/          # reusable pipeline modules
-  tests/                   # smoke tests
-  outputs/
-    final_submission/      # final figures/tables only, not manuscript folder
-    final_hardening/       # final tables and publication figure exports
-    serious_cnn_baseline/  # summary tables/training curves only
-    stn_cnn_baseline/      # summary tables
-    hex_native_temporal_baseline/
-    calibration_reliability/
-    pixel_robustness_control/
-    flyvis_variability_control/
-    final_reviewer_metrics/
+├── configs/          # analysis and stimulus configuration
+├── figures/          # current PDF, SVG, and PNG exports
+├── notebooks/        # exploratory notebooks
+├── outputs/          # lightweight result tables and diagnostics
+├── scripts/          # executable pipeline stages
+├── src/scalebreak/   # reusable analysis modules
+└── tests/            # smoke tests
 ```
 
-## Main Result Snapshot
-
-The final reviewer-hardened comparison is intentionally conservative:
-
-| Model | LOSO direction accuracy |
-|---|---:|
-| Hex-native temporal model | 1.000 |
-| FlyVis + response noise (5%) | 0.938 |
-| FlyVis | 0.924 |
-| TemporalResNet18Small | 0.608 |
-| STN-CNN | 0.597 |
-| Pixel | 0.597 |
-| Local RNN | 0.385 |
-| Nuisance | 0.167 |
-
-The hex-native temporal model reaching ceiling is important: the raw direction
-LOSO task is not FlyVis-unique. The defensible claim is that FlyVis encodes
-dynamic direction in a scale-stable, biologically interpretable temporal and
-cell-type representation.
-
-## Install
+## Installation
 
 ```bash
+git clone https://github.com/nalin-dhiman/ScaleBreak-FlyVis.git
+cd ScaleBreak-FlyVis
+
 python -m venv .venv
 source .venv/bin/activate
 pip install -r scalebreak_flyvis/requirements.txt
 ```
 
-Optional FlyVis installation is required only for scripts that directly run the
-pretrained FlyVis model.
+The `flyvis` dependency and a locally cached FlyVis checkpoint are required only for scripts that simulate the pretrained network. Most table, plotting, and unit-test code does not require the checkpoint.
 
-## Smoke Tests
+## Tests
 
 ```bash
 PYTHONPATH=scalebreak_flyvis/src pytest scalebreak_flyvis/tests -q
 ```
 
-## Useful Commands
+## Core workflow
 
-Generate publication figures from included lightweight tables:
-
-```bash
-python scalebreak_flyvis/scripts/30_make_publication_figures.py \
-  --outputs-dir scalebreak_flyvis/outputs \
-  --out-dir scalebreak_flyvis/outputs/final_hardening/figures_pub_clean
-```
-
-Run final reviewer metrics from existing outputs:
+Generate FlyVis-native stimuli with independent seeded nuisance variation:
 
 ```bash
-python scalebreak_flyvis/scripts/41_final_reviewer_metrics.py \
-  --outputs-dir scalebreak_flyvis/outputs
+python scalebreak_flyvis/scripts/11_generate_flyvis_native_stimuli.py
 ```
 
-Run the hex-native temporal baseline, if raw stimuli are available locally:
+Extract central-cell FlyVis responses:
 
 ```bash
-python scalebreak_flyvis/scripts/40_train_hex_native_temporal_baseline.py \
-  --seeds 42 \
-  --epochs 10 \
-  --batch-size 64
+python scalebreak_flyvis/scripts/12_run_flyvis_pilot_v2.py \
+  --device cpu
 ```
 
-## Data Requirements For Full Reproduction
+Audit unique conditions, scale regimes, and coordinate mappings:
 
-Full reproduction requires local data that are not committed:
+```bash
+python scalebreak_flyvis/scripts/42_audit_unique_conditions.py
+```
 
-- FlyVis data/checkpoint cache
-- Pilot v2 native stimuli, e.g. `outputs/flyvis_pilot_v2/stimuli/stimuli.npy`
-- FlyVis response tensors, e.g. `outputs/flyvis_pilot_v2/responses/flyvis_central_cell_responses.npy`
-- neuPrint optic-lobe export tables for graph-audit scripts
+Train matched geometry controls:
 
-The included result tables and figures are enough to inspect the final reported
-results without downloading multi-GB arrays.
+```bash
+python scalebreak_flyvis/scripts/43_matched_geometry_controls.py \
+  --seeds 42,84,123
+```
 
-## Scientific Guardrails
+Run direct FlyVis perturbations:
 
-Use these phrases:
+```bash
+python scalebreak_flyvis/scripts/44_direct_flyvis_perturbations.py \
+  --checkpoints 000 \
+  --seed 20260807
+```
 
-- retinal apparent scale
-- retinal projection
-- dynamic direction representation
-- scale-generalization
-- activity proxy
-- connectome-constrained model
+Regenerate the figure exports from saved result tables:
 
-Avoid these claims:
+```bash
+python scalebreak_flyvis/scripts/45_make_analysis_figures.py
+```
 
-- physical distance perception
-- generic object recognition
-- exact connectome necessity
-- FlyVis uniqueness over all possible artificial models
+Every command accepts `--help`. Large stimulus tensors, response arrays, checkpoints, and prediction-level files are intentionally ignored by Git.
 
+## Current figures
+
+All figures are available as vector PDF/SVG files and PNG previews under [`scalebreak_flyvis/figures`](scalebreak_flyvis/figures).
+
+### Cross-scale transfer
+
+![Cross-scale transfer](scalebreak_flyvis/figures/fig2_scale_matrix.png)
+
+### Matched temporal controls
+
+![Matched temporal controls](scalebreak_flyvis/figures/fig3_controls.png)
+
+### Feature-family profiles
+
+![Feature-family profiles](scalebreak_flyvis/figures/fig4_feature_family.png)
+
+### Direct FlyVis perturbations
+
+![Direct FlyVis perturbations](scalebreak_flyvis/figures/fig6_ablation.png)
+
+## Data requirements
+
+Full end-to-end execution requires:
+
+- a local FlyVis data/checkpoint cache;
+- generated native stimulus tensors and metadata;
+- central-cell FlyVis response arrays;
+- local connectome export tables for graph-specific analyses.
+
+Paths can be changed through command-line arguments or files under `scalebreak_flyvis/configs/`. The default `.gitignore` keeps large arrays, checkpoints, environments, and caches out of version control.

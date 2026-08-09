@@ -39,3 +39,8 @@ scalebreak_flyvis/outputs/**/predictions_*.csv
 *.swp
 *.swo
 
+# Local writing and correspondence artifacts
+revision_round*/
+response_to_reviewer*
+*submission*.zip
+*.docx

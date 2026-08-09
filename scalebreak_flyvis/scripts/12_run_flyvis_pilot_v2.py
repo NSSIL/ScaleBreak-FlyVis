@@ -13,6 +13,9 @@ import numpy as np
 import pandas as pd
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
 def write_json(data: dict[str, Any], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
@@ -21,16 +24,15 @@ def write_json(data: dict[str, Any], path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--flyvis-root", default="scalebreak_flyvis/flyvis_data")
+    parser.add_argument("--flyvis-root", type=Path, default=ROOT / "flyvis_data")
     parser.add_argument("--model", default="flow/0000/000")
-    parser.add_argument("--stim-dir", default="scalebreak_flyvis/outputs/flyvis_pilot_v2/stimuli")
-    parser.add_argument("--out-dir", default="scalebreak_flyvis/outputs/flyvis_pilot_v2/responses")
+    parser.add_argument("--stim-dir", type=Path, default=ROOT / "outputs" / "flyvis_pilot_v2" / "stimuli")
+    parser.add_argument("--out-dir", type=Path, default=ROOT / "outputs" / "flyvis_pilot_v2" / "responses")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
 
-    root = Path.cwd()
-    os.environ.setdefault("FLYVIS_ROOT_DIR", str((root / args.flyvis_root).resolve()))
+    os.environ.setdefault("FLYVIS_ROOT_DIR", str(args.flyvis_root.resolve()))
     os.environ.setdefault("CUDA_VISIBLE_DEVICES", "" if args.device == "cpu" else os.environ.get("CUDA_VISIBLE_DEVICES", ""))
     os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl_flyvis")
 
@@ -39,8 +41,8 @@ def main() -> None:
     from flyvis import results_dir
     from flyvis.network import NetworkView
 
-    stim_dir = (root / args.stim_dir).resolve()
-    out_dir = (root / args.out_dir).resolve()
+    stim_dir = args.stim_dir.resolve()
+    out_dir = args.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     stimuli = np.load(stim_dir / "stimuli.npy", mmap_mode="r")
     metadata = pd.read_csv(stim_dir / "metadata.csv")
@@ -75,7 +77,16 @@ def main() -> None:
         batch_n = int(batch.shape[0])
         if batch_n not in initial_states:
             print(f"Computing cached grey steady state for batch size {batch_n}", flush=True)
-            initial_states[batch_n] = network.steady_state(1.0, dt, batch_size=batch_n)
+            # Match the 0.5 grey background used by the stimulus generator.
+            # The submitted code passed 1.0 as the first positional argument
+            # (t_pre), but did not explicitly document the grey value.  Keeping
+            # value=0.5 makes the intended initialization unambiguous.
+            initial_states[batch_n] = network.steady_state(
+                t_pre=1.0,
+                dt=dt,
+                batch_size=batch_n,
+                value=0.5,
+            )
         with torch.no_grad():
             resp = network.simulate(batch, dt=dt, initial_state=initial_states[batch_n])
             central = resp[:, :, central_idx].detach().cpu().numpy().astype(np.float32)
@@ -118,6 +129,8 @@ def main() -> None:
             "response_path": str(response_path),
             "n_trials": int(stimuli.shape[0]),
             "dt": dt,
+            "steady_state_seconds": 1.0,
+            "steady_state_grey_value": 0.5,
             "note": "Saved central-cell/type responses; all-node responses would be prohibitively large.",
         },
         out_dir / "run_manifest.json",
