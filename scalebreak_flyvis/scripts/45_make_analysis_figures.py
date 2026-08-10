@@ -40,8 +40,8 @@ def save(fig, base: Path) -> None:
     plt.close(fig)
 
 
-def fig2(audit_dir: Path, out: Path) -> None:
-    df = pd.read_csv(audit_dir / "table_loso_by_scale_unique_conditions.csv")
+def fig2(validation_dir: Path, out: Path) -> None:
+    df = pd.read_csv(validation_dir / "table_loso_by_scale_unique_conditions.csv")
     labels = {
         "scale_varying_moving_bar_and_target": "Scale-varying bars + targets (primary)",
         "complete_mixture_including_scale_neutral_edge": "Complete mixture (+ scale-neutral edge)",
@@ -92,7 +92,7 @@ def fig2(audit_dir: Path, out: Path) -> None:
 def fig3(outputs: Path, out: Path) -> None:
     match = pd.read_csv(outputs / "matched_geometry_controls" / "table_matched_geometry_summary.csv")
     unmatched = pd.read_csv(
-        outputs / "unique_condition_audit" / "table_unmatched_baselines_unique_conditions_summary.csv"
+        outputs / "unique_condition_validation" / "table_unmatched_baselines_unique_conditions_summary.csv"
     ).set_index("model")
     name_map = {
         "hex_six_neighbor": "Matched hex\nneighbours",
@@ -147,8 +147,8 @@ def fig3(outputs: Path, out: Path) -> None:
     save(fig, out / "fig3_controls")
 
 
-def fig4(audit_dir: Path, out: Path) -> None:
-    df = pd.read_csv(audit_dir / "table_family_by_scale_unique_conditions.csv")
+def fig4(validation_dir: Path, out: Path) -> None:
+    df = pd.read_csv(validation_dir / "table_family_by_scale_unique_conditions.csv")
     labels = {
         "moving_edge": "Moving edge (scale-neutral control)",
         "moving_bar": "Moving bar",
@@ -401,9 +401,9 @@ def main() -> None:
     )
     args = parser.parse_args()
     style()
-    fig2(args.outputs_dir / "unique_condition_audit", args.figures_dir)
+    fig2(args.outputs_dir / "unique_condition_validation", args.figures_dir)
     fig3(args.outputs_dir, args.figures_dir)
-    fig4(args.outputs_dir / "unique_condition_audit", args.figures_dir)
+    fig4(args.outputs_dir / "unique_condition_validation", args.figures_dir)
     fig5(args.outputs_dir, args.figures_dir, args.tables_dir)
     fig6(args.outputs_dir, args.figures_dir, args.tables_dir)
     supplementary_celltype(args.outputs_dir, args.supplementary_figures_dir, args.tables_dir)

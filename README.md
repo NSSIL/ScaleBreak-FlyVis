@@ -6,9 +6,9 @@ ScaleBreak-FlyVis is a reproducible analysis toolkit for testing whether dynamic
 
 - FlyVis-native hexagonal stimulus generation
 - Frozen FlyVis response extraction
-- Unique-condition and duplicate-repeat audits
+- Unique-condition and duplicate-repeat validation
 - Interpolation and boundary-extrapolation summaries
-- Collision audits for hex-to-square coordinate mappings
+- Collision characterization for hex-to-square coordinate mappings
 - Capacity- and sampling-matched temporal controls
 - Direct T4/T5 and connectivity-parameter perturbations
 - Linear probes, temporal diagnostics, RSA/CKA, and robustness controls
@@ -18,7 +18,7 @@ ScaleBreak-FlyVis is a reproducible analysis toolkit for testing whether dynamic
 
 - Repeat seeds now drive position jitter and luminance noise in `11_generate_flyvis_native_stimuli.py`.
 - Moving edges are marked as scale-neutral because changing their nominal scale does not alter rendered geometry.
-- `42_audit_unique_conditions.py` detects duplicate renderings, recomputes uncertainty over unique conditions, and separates interpolation from boundary extrapolation.
+- `42_validate_unique_conditions.py` detects duplicate renderings, recomputes uncertainty over unique conditions, and separates interpolation from boundary extrapolation.
 - `43_matched_geometry_controls.py` compares hex-neighbour, collision-free square-neighbour, and self-only temporal models with matched inputs, capacity, splits, and optimization.
 - `44_direct_flyvis_perturbations.py` re-simulates FlyVis after T4/T5 state silencing and two connectivity-parameter shuffles.
 - `45_make_analysis_figures.py` regenerates the current figures with legends outside the plotting axes.
@@ -70,10 +70,10 @@ python scalebreak_flyvis/scripts/12_run_flyvis_pilot_v2.py \
   --device cpu
 ```
 
-Audit unique conditions, scale regimes, and coordinate mappings:
+Validate unique conditions, scale regimes, and coordinate mappings:
 
 ```bash
-python scalebreak_flyvis/scripts/42_audit_unique_conditions.py
+python scalebreak_flyvis/scripts/42_validate_unique_conditions.py
 ```
 
 Train matched geometry controls:

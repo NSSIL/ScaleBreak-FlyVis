@@ -148,10 +148,8 @@ def render_movie(
             movie[frame, 0, mask] = target
             area_accum.append(float(mask.sum()))
     if noise_std > 0:
-        # The original submitted generator recorded a different seed for each
-        # repeat but never used it, making all ten repeats pixel-identical.  A
-        # small seeded luminance perturbation makes repeats genuine independent
-        # renderings while preserving the controlled label variables.
+        # Seeded luminance variation produces independently sampled renderings
+        # while preserving the controlled label variables.
         noise_rng = np.random.default_rng(seed)
         movie += noise_rng.normal(0.0, noise_std, size=movie.shape).astype(np.float32)
         np.clip(movie, 0.0, 1.0, out=movie)

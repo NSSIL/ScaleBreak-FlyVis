@@ -78,9 +78,7 @@ def main() -> None:
         if batch_n not in initial_states:
             print(f"Computing cached grey steady state for batch size {batch_n}", flush=True)
             # Match the 0.5 grey background used by the stimulus generator.
-            # The submitted code passed 1.0 as the first positional argument
-            # (t_pre), but did not explicitly document the grey value.  Keeping
-            # value=0.5 makes the intended initialization unambiguous.
+            # Explicitly match the 0.5 grey background used by the generator.
             initial_states[batch_n] = network.steady_state(
                 t_pre=1.0,
                 dt=dt,

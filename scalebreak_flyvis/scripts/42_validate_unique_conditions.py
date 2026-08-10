@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Audit LOSO results at the independent-condition level.
+"""Validate LOSO results at the independent-condition level.
 
 This script checks three data-quality and evaluation issues:
 
@@ -12,7 +12,7 @@ This script checks three data-quality and evaluation issues:
 3. Interpolation and the lower/upper boundary extrapolations are reported
    separately, including the worst held-out scale.
 
-The script also audits 24x24 and 32x32 coordinate projections. The full
+The script also characterizes 24x24 and 32x32 coordinate projections. The full
 TemporalResNet run used 32x32, where all 721 hex samples occupy distinct
 grid cells; the lightweight STN run used 24x24, where collisions occur.
 It also re-scores both unmatched baselines on the same de-duplicated primary
@@ -82,7 +82,7 @@ def summarize_subset(
     }
 
 
-def projection_audit(coords: pd.DataFrame, grid_size: int) -> dict[str, object]:
+def projection_summary(coords: pd.DataFrame, grid_size: int) -> dict[str, object]:
     x = coords["x"].to_numpy(dtype=float)
     y = coords["y"].to_numpy(dtype=float)
     gx = np.round((x - x.min()) / max(x.max() - x.min(), 1e-8) * (grid_size - 1)).astype(int)
@@ -100,7 +100,7 @@ def projection_audit(coords: pd.DataFrame, grid_size: int) -> dict[str, object]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--outputs-dir", type=Path, default=ROOT / "outputs")
-    parser.add_argument("--out-dir", type=Path, default=ROOT / "outputs" / "unique_condition_audit")
+    parser.add_argument("--out-dir", type=Path, default=ROOT / "outputs" / "unique_condition_validation")
     parser.add_argument("--n-bootstrap", type=int, default=10_000)
     parser.add_argument("--seed", type=int, default=20260807)
     args = parser.parse_args()
@@ -138,11 +138,11 @@ def main() -> None:
                 "predictions_identical": bool(prediction_identical),
             }
         )
-    duplicate_audit = pd.DataFrame(duplicate_rows)
-    duplicate_audit.to_csv(args.out_dir / "table_repeat_independence_audit.csv", index=False)
+    repeat_validation = pd.DataFrame(duplicate_rows)
+    repeat_validation.to_csv(args.out_dir / "table_repeat_independence_validation.csv", index=False)
 
     # One row per actual rendered condition.  Using repeat zero is exact because
-    # the audit above verifies equality across every legacy repeat cluster.
+    # the validation above verifies equality across every legacy repeat cluster.
     unique = pred[pred["repeat"] == 0].copy()
     scales = sorted(unique["heldout_scale"].unique())
     lower, upper = scales[0], scales[-1]
@@ -251,8 +251,8 @@ def main() -> None:
     baseline_summary.to_csv(args.out_dir / "table_unmatched_baselines_unique_conditions_summary.csv", index=False)
 
     coords = pd.read_csv(coord_path)
-    mapping = pd.DataFrame([projection_audit(coords, 24), projection_audit(coords, 32)])
-    mapping.to_csv(args.out_dir / "table_hex_to_grid_resolution_audit.csv", index=False)
+    mapping = pd.DataFrame([projection_summary(coords, 24), projection_summary(coords, 32)])
+    mapping.to_csv(args.out_dir / "table_hex_to_grid_resolution.csv", index=False)
 
     edge = meta[meta["feature_family"] == "moving_edge"]
     edge_reference = int(edge.iloc[0]["sample"])
@@ -268,9 +268,9 @@ def main() -> None:
         edge_scale_identical &= bool(np.array_equal(stimuli[edge_reference], stimuli[int(row["sample"])]))
 
     report = {
-        "all_dynamic_repeat_clusters": int(len(duplicate_audit)),
-        "all_repeat_clusters_pixel_identical": bool(duplicate_audit["stimuli_pixel_identical"].all()),
-        "all_repeat_cluster_predictions_identical": bool(duplicate_audit["predictions_identical"].all()),
+        "all_dynamic_repeat_clusters": int(len(repeat_validation)),
+        "all_repeat_clusters_pixel_identical": bool(repeat_validation["stimuli_pixel_identical"].all()),
+        "all_repeat_cluster_predictions_identical": bool(repeat_validation["predictions_identical"].all()),
         "recorded_dynamic_rows": int(len(dynamic_meta)),
         "unique_dynamic_rendered_conditions": int(len(unique)),
         "moving_edge_identical_across_scale_for_matched_conditions": bool(edge_scale_identical),
@@ -282,14 +282,14 @@ def main() -> None:
         "original_prediction_source": str(pred_path),
         "unmatched_baseline_table": str(args.out_dir / "table_unmatched_baselines_unique_conditions_summary.csv"),
     }
-    (args.out_dir / "audit_summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    (args.out_dir / "validation_summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     (args.out_dir / "REPORT.md").write_text(
         "\n".join(
             [
-                "# Unique-condition independence and evaluation-regime audit",
+                "# Unique-condition independence and evaluation-regime validation",
                 "",
                 f"- The legacy dynamic set contains {len(dynamic_meta)} rows but only {len(unique)} unique rendered conditions.",
-                f"- Every one of the {len(duplicate_audit)} repeat clusters is pixel-identical: {bool(duplicate_audit['stimuli_pixel_identical'].all())}.",
+                f"- Every one of the {len(repeat_validation)} repeat clusters is pixel-identical: {bool(repeat_validation['stimuli_pixel_identical'].all())}.",
                 f"- Moving-edge movies are identical across the nominal scale labels for matched direction/contrast/repeat: {bool(edge_scale_identical)}.",
                 "- The primary scale-varying analysis therefore uses moving bars and translating targets and resamples unique conditions.",
                 "- Interior-scale interpolation, both boundary extrapolations, the upper boundary, and the worst scale are reported separately.",
