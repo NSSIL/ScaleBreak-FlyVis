@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 """Direct FlyVis circuit perturbations on unique stimulus conditions.
 
-Unlike the earlier response-space proxy controls, this script edits the loaded
-FlyVis network before simulation.  It evaluates:
+This script edits the loaded FlyVis network before simulation. It evaluates:
 
 * the intact checkpoint;
 * complete T4/T5 state silencing via FlyVis's documented state-hook API;

@@ -15,7 +15,7 @@ This script checks three data-quality and evaluation issues:
 The script also characterizes 24x24 and 32x32 coordinate projections. The full
 TemporalResNet run used 32x32, where all 721 hex samples occupy distinct
 grid cells; the lightweight STN run used 24x24, where collisions occur.
-It also re-scores both unmatched baselines on the same de-duplicated primary
+It also re-scores both unmatched baselines on the same unique-condition primary
 condition set used for the unique-condition FlyVis statistic.
 """
 
