@@ -39,7 +39,7 @@ scalebreak_flyvis/
 ## Installation
 
 ```bash
-git clone https://github.com/nalin-dhiman/ScaleBreak-FlyVis.git
+git clone https://github.com/NSSIL/ScaleBreak-FlyVis.git
 cd ScaleBreak-FlyVis
 
 python -m venv .venv
